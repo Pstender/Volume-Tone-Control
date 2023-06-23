@@ -74,7 +74,6 @@ void loop()
 void initializeTDA7439()
 {
   // Send initialization commands to TDA7439
-  // Refer to the TDA7439 datasheet for the exact sequence
   Wire.beginTransmission(TDA7439_ADDR);
   Wire.write(0x00); // Command 0
   // Send other initialization commands here...
