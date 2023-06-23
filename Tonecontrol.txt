@@ -1,102 +1,229 @@
 #include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <IRremote.h>
 
-#define TDA7439_ADDR 0x88 // I2C address of TDA7439
+// LCD module
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Rotary encoder pins
-#define ENC1_CLK_PIN 2
-#define ENC1_DT_PIN 3
-#define ENC2_CLK_PIN 4
-#define ENC2_DT_PIN 5
-#define ENC3_CLK_PIN 6
-#define ENC3_DT_PIN 7
-#define ENC4_CLK_PIN 8
-#define ENC4_DT_PIN 9
+// IR remote
+IRrecv irrecv(2);
+decode_results results;
 
-// Initial values for tone and volume levels
-int8_t bassLevel = 0;
-int8_t trebleLevel = 0;
-int8_t midLevel = 0;
-int8_t volumeLevel = 0;
+// Rotary encoders
+#define ENCODER_1_A 3
+#define ENCODER_1_B 4
+#define ENCODER_2_A 5
+#define ENCODER_2_B 6
+#define ENCODER_3_A 7
+#define ENCODER_3_B 8
+#define ENCODER_4_A 9
+#define ENCODER_4_B 10
 
-void setup()
-{
-  Wire.begin();
-  delay(100);
-  initializeTDA7439();
+// TDA7439 address
+#define TDA7439_ADDR 0x44
 
-  // Rotary encoder setup
-  pinMode(ENC1_CLK_PIN, INPUT);
-  pinMode(ENC1_DT_PIN, INPUT);
-  pinMode(ENC2_CLK_PIN, INPUT);
-  pinMode(ENC2_DT_PIN, INPUT);
-  pinMode(ENC3_CLK_PIN, INPUT);
-  pinMode(ENC3_DT_PIN, INPUT);
-  pinMode(ENC4_CLK_PIN, INPUT);
-  pinMode(ENC4_DT_PIN, INPUT);
+// Global variables
+int volume = 0;
+int bass = 0;
+int treble = 0;
+int mid = 0;
+int channel = 1;
+
+// Function prototypes
+void increaseParameter();
+void decreaseParameter();
+void setTDA7439(byte address, byte value);
+
+void setup() {
+  // Initialize LCD
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 0);
+  lcd.print("Audio Control");
+  lcd.setCursor(0, 1);
+  lcd.print("Volume:       dB");
+
+  // Initialize IR remote
+  irrecv.enableIRIn();
+
+  // Initialize rotary encoders
+  pinMode(ENCODER_1_A, INPUT_PULLUP);
+  pinMode(ENCODER_1_B, INPUT_PULLUP);
+  pinMode(ENCODER_2_A, INPUT_PULLUP);
+  pinMode(ENCODER_2_B, INPUT_PULLUP);
+  pinMode(ENCODER_3_A, INPUT_PULLUP);
+  pinMode(ENCODER_3_B, INPUT_PULLUP);
+  pinMode(ENCODER_4_A, INPUT_PULLUP);
+  pinMode(ENCODER_4_B, INPUT_PULLUP);
+
+  // Set initial parameter values
+  setTDA7439(0x00, (byte)volume);   // Set volume
+  setTDA7439(0x01, (byte)bass);     // Set bass
+  setTDA7439(0x02, (byte)treble);   // Set treble
+  setTDA7439(0x03, (byte)mid);      // Set mid
 }
 
-void loop()
-{
-  // Read encoder values
-  int8_t bassDelta = readEncoder(ENC1_CLK_PIN, ENC1_DT_PIN);
-  int8_t trebleDelta = readEncoder(ENC2_CLK_PIN, ENC2_DT_PIN);
-  int8_t midDelta = readEncoder(ENC3_CLK_PIN, ENC3_DT_PIN);
-  int8_t volumeDelta = readEncoder(ENC4_CLK_PIN, ENC4_DT_PIN);
-
-  // Adjust tone and volume based on encoder changes
-  if (bassDelta != 0)
-  {
-    bassLevel += bassDelta;
-    adjustBass(bassLevel);
+void loop() {
+  // Read IR remote
+  if (irrecv.decode(&results)) {
+    switch (results.value) {
+      case 0xFF906F:
+        // IR remote up button - Switch to the next parameter
+        channel++;
+        if (channel > 5) channel = 1;
+        lcd.setCursor(8, 0);
+        lcd.print("          ");
+        lcd.setCursor(8, 0);
+        switch (channel) {
+          case 1:
+            lcd.print("Volume");
+            break;
+          case 2:
+            lcd.print("Bass");
+            break;
+          case 3:
+            lcd.print("Treble");
+            break;
+          case 4:
+            lcd.print("Mid");
+            break;
+          case 5:
+            lcd.print("Channel");
+            break;
+        }
+        break;
+      case 0xFFA05F:
+        // IR remote down button - Switch to the previous parameter
+        channel--;
+        if (channel < 1) channel = 5;
+        lcd.setCursor(8, 0);
+        lcd.print("          ");
+        lcd.setCursor(8, 0);
+        switch (channel) {
+          case 1:
+            lcd.print("Volume");
+            break;
+          case 2:
+            lcd.print("Bass");
+            break;
+          case 3:
+            lcd.print("Treble");
+            break;
+          case 4:
+            lcd.print("Mid");
+            break;
+          case 5:
+            lcd.print("Channel");
+            break;
+        }
+        break;
+      case 0xFFC03F:
+        // IR remote left button - Decrease the parameter value
+        decreaseParameter();
+        break;
+      case 0xFFE01F:
+        // IR remote right button - Increase the parameter value
+        increaseParameter();
+        break;
+    }
+    irrecv.resume();
   }
 
-  if (trebleDelta != 0)
-  {
-    trebleLevel += trebleDelta;
-    adjustTreble(trebleLevel);
-  }
 
-  if (midDelta != 0)
-  {
-    midLevel += midDelta;
-    adjustMid(midLevel);
-  }
-
-  if (volumeDelta != 0)
-  {
-    volumeLevel += volumeDelta;
-    adjustVolume(volumeLevel);
-  }
-
-  delay(50); // Add a small delay to avoid rapid changes
 }
 
-void initializeTDA7439()
-{
-  // Send initialization commands to TDA7439
+void increaseParameter() {
+  switch (channel) {
+    case 1:
+      volume++;
+      if (volume > 100) volume = 100;
+      setTDA7439(0x00, (byte)volume);  // Set volume
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(volume);
+      break;
+    case 2:
+      bass++;
+      if (bass > 15) bass = 15;
+      setTDA7439(0x01, (byte)bass);  // Set bass
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(bass);
+      break;
+    case 3:
+      treble++;
+      if (treble > 15) treble = 15;
+      setTDA7439(0x02, (byte)treble);  // Set treble
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(treble);
+      break;
+    case 4:
+      mid++;
+      if (mid > 15) mid = 15;
+      setTDA7439(0x03, (byte)mid);  // Set mid
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(mid);
+      break;
+    case 5:
+ 
+      break;
+  }
+  lcd.print(" dB   "); // Display dB unit
+}
+
+void decreaseParameter() {
+  switch (channel) {
+    case 1:
+      volume--;
+      if (volume < 0) volume = 0;
+      setTDA7439(0x00, (byte)volume);  // Set volume
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(volume);
+      break;
+    case 2:
+      bass--;
+      if (bass < 0) bass = 0;
+      setTDA7439(0x01, (byte)bass);  // Set bass
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(bass);
+      break;
+    case 3:
+      treble--;
+      if (treble < 0) treble = 0;
+      setTDA7439(0x02, (byte)treble);  // Set treble
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(treble);
+      break;
+    case 4:
+      mid--;
+      if (mid < 0) mid = 0;
+      setTDA7439(0x03, (byte)mid);  // Set mid
+      lcd.setCursor(9, 1);
+      lcd.print("          ");
+      lcd.setCursor(9, 1);
+      lcd.print(mid);
+      break;
+    case 5:
+    
+      break;
+  }
+  lcd.print(" dB   "); // Display dB unit
+}
+
+void setTDA7439(byte address, byte value) {
   Wire.beginTransmission(TDA7439_ADDR);
-  Wire.write(0x00); // Command 0
-  // Send other initialization commands here...
+  Wire.write(address);
+  Wire.write(value);
   Wire.endTransmission();
 }
-
-void adjustBass(int8_t gain)
-{
-  Wire.beginTransmission(TDA7439_ADDR);
-  Wire.write(0x01); // Command 1: Bass adjustment
-  Wire.write(gain); // Set the gain value (-14dB to +14dB)
-  Wire.endTransmission();
-}
-
-void adjustTreble(int8_t gain)
-{
-  Wire.beginTransmission(TDA7439_ADDR);
-  Wire.write(0x02); // Command 2: Treble adjustment
-  Wire.write(gain); // Set the gain value (-14dB to +14dB)
-  Wire.endTransmission();
-}
-
-void adjustMid(int8_t gain)
-{
-  Wire.beginTransmission(TDA7439_ADDR);
-  Wire.write(0x03);
