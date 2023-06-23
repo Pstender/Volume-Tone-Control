@@ -1,6 +1,6 @@
 #include <Wire.h>
 
-#define TDA7439_ADDR 0x88 // I2C address of TDA7439 (refer to datasheet for correct address)
+#define TDA7439_ADDR 0x88 // I2C address of TDA7439
 
 // Rotary encoder pins
 #define ENC1_CLK_PIN 2
