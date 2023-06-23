@@ -1,0 +1,103 @@
+#include <Wire.h>
+
+#define TDA7439_ADDR 0x88 // I2C address of TDA7439 (refer to datasheet for correct address)
+
+// Rotary encoder pins
+#define ENC1_CLK_PIN 2
+#define ENC1_DT_PIN 3
+#define ENC2_CLK_PIN 4
+#define ENC2_DT_PIN 5
+#define ENC3_CLK_PIN 6
+#define ENC3_DT_PIN 7
+#define ENC4_CLK_PIN 8
+#define ENC4_DT_PIN 9
+
+// Initial values for tone and volume levels
+int8_t bassLevel = 0;
+int8_t trebleLevel = 0;
+int8_t midLevel = 0;
+int8_t volumeLevel = 0;
+
+void setup()
+{
+  Wire.begin();
+  delay(100);
+  initializeTDA7439();
+
+  // Rotary encoder setup
+  pinMode(ENC1_CLK_PIN, INPUT);
+  pinMode(ENC1_DT_PIN, INPUT);
+  pinMode(ENC2_CLK_PIN, INPUT);
+  pinMode(ENC2_DT_PIN, INPUT);
+  pinMode(ENC3_CLK_PIN, INPUT);
+  pinMode(ENC3_DT_PIN, INPUT);
+  pinMode(ENC4_CLK_PIN, INPUT);
+  pinMode(ENC4_DT_PIN, INPUT);
+}
+
+void loop()
+{
+  // Read encoder values
+  int8_t bassDelta = readEncoder(ENC1_CLK_PIN, ENC1_DT_PIN);
+  int8_t trebleDelta = readEncoder(ENC2_CLK_PIN, ENC2_DT_PIN);
+  int8_t midDelta = readEncoder(ENC3_CLK_PIN, ENC3_DT_PIN);
+  int8_t volumeDelta = readEncoder(ENC4_CLK_PIN, ENC4_DT_PIN);
+
+  // Adjust tone and volume based on encoder changes
+  if (bassDelta != 0)
+  {
+    bassLevel += bassDelta;
+    adjustBass(bassLevel);
+  }
+
+  if (trebleDelta != 0)
+  {
+    trebleLevel += trebleDelta;
+    adjustTreble(trebleLevel);
+  }
+
+  if (midDelta != 0)
+  {
+    midLevel += midDelta;
+    adjustMid(midLevel);
+  }
+
+  if (volumeDelta != 0)
+  {
+    volumeLevel += volumeDelta;
+    adjustVolume(volumeLevel);
+  }
+
+  delay(50); // Add a small delay to avoid rapid changes
+}
+
+void initializeTDA7439()
+{
+  // Send initialization commands to TDA7439
+  // Refer to the TDA7439 datasheet for the exact sequence
+  Wire.beginTransmission(TDA7439_ADDR);
+  Wire.write(0x00); // Command 0
+  // Send other initialization commands here...
+  Wire.endTransmission();
+}
+
+void adjustBass(int8_t gain)
+{
+  Wire.beginTransmission(TDA7439_ADDR);
+  Wire.write(0x01); // Command 1: Bass adjustment
+  Wire.write(gain); // Set the gain value (-14dB to +14dB)
+  Wire.endTransmission();
+}
+
+void adjustTreble(int8_t gain)
+{
+  Wire.beginTransmission(TDA7439_ADDR);
+  Wire.write(0x02); // Command 2: Treble adjustment
+  Wire.write(gain); // Set the gain value (-14dB to +14dB)
+  Wire.endTransmission();
+}
+
+void adjustMid(int8_t gain)
+{
+  Wire.beginTransmission(TDA7439_ADDR);
+  Wire.write(0x03);
