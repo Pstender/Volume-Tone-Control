@@ -56,6 +56,9 @@ void setup() {
   pinMode(ENCODER_4_B, INPUT_PULLUP);
 
   // Set initial parameter values
+  bass = 0;
+  treble = 0;
+  mid = 0;
   setTDA7439(0x00, (byte)volume);   // Set volume
   setTDA7439(0x01, (byte)bass);     // Set bass
   setTDA7439(0x02, (byte)treble);   // Set treble
